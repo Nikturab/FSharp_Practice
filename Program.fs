@@ -69,16 +69,12 @@ let rec i (vars: Map<string, VAL>) expr = match expr with
                                                                                    | _ -> raise TypeNotExpected
                                             | RET_OP x -> vars, (RETURN (snd (i vars x)))
 
-//let result = i (Map.ofList []) e
 let test p str =
     match run p str with
     | Success(result, _, _)   -> printfn "Success: %A" result
     | Failure(errorMsg, _, _) -> printfn "Failure: %s" errorMsg
     
 let str s = pstring s
-let line p = p .>> str ";"
-
-let reference p = str p
 let ws = spaces
 let str_ws s = pstring s .>> ws
 let identifier =
@@ -86,7 +82,7 @@ let identifier =
     let isIdentifierChar c = isLetter c || isDigit c || c = '_'
 
     many1Satisfy2L isIdentifierFirstChar isIdentifierChar "identifier"
-    .>> ws // skips trailing whitespace
+    .>> ws
             
 let pval = identifier
 let stringLiteral: Parser<string,unit> =
