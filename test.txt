@@ -1,0 +1,13 @@
+var $a=input_int;
+output $a;
+if(1):
+    var $b=input_int;
+    if($b):
+        1;
+    else:
+        2;
+    endif;
+    var $c=input_int;
+else:
+    0;
+endif;
