@@ -4,15 +4,13 @@ open Microsoft.VisualBasic.CompilerServices
 open FParsec
 
 
+// AST
 type VAL =
     | INT_ARRAY of VAL[]
     | INT of int
     | STR of string
     | RETURN of VAL
     | NONE
-
-
-
 type AST =
     | IF of AST * AST * AST
     | VAR_ASSIGN of string * AST
@@ -25,16 +23,15 @@ type AST =
     | VAR_REF of string
     | ARR_REF of string * int
     | RET_OP of AST
-    | BLOCK of list<AST>   // BLOCK can return value and stop a program (or return NONE)
+    | BLOCK of list<AST>
     
 exception TypeNotExpected
 exception VariableAlreadyDefined
-
 exception VariableUndefined
 
 let print_val v = match v with
-                  | INT x -> printfn "%i" x
-                  | STR x -> printfn "%s" x
+                  | INT x -> printf "%i" x
+                  | STR x -> printf "%s" x
                   | _ -> printfn "?"
 
 
@@ -69,10 +66,13 @@ let rec i (vars: Map<string, VAL>) expr = match expr with
                                                                                    | _ -> raise TypeNotExpected
                                             | RET_OP x -> vars, (RETURN (snd (i vars x)))
 
-let test p str =
+
+// Parser
+let test p str = // run program and print AST
     match run p str with
-    | Success(result, _, _)   -> printfn "Success: %A" result
-    | Failure(errorMsg, _, _) -> printfn "Failure: %s" errorMsg
+    | Success(result, _, _)   -> i ([] |> Map.ofList) result |> ignore
+                                 printfn "\n___DEBUG:____\nSuccess: %A" result
+    | Failure(errorMsg, _, _) -> printfn "\n___DEBUG:____\nFailure: %s" errorMsg; 
     
 let str s = pstring s
 let ws = spaces
@@ -92,34 +92,50 @@ let inumber: Parser<AST,unit> = pint32 |>> INT |>> CONST
 let istring = stringLiteral |>> STR |>> CONST
 let jvalue, jvalueRef = createParserForwardedToRef<AST, unit>()
 
-let iassignment: Parser<AST,unit> = pipe4 (str_ws "var") identifier (str_ws "=") jvalue (fun _ x _ z -> VAR_ASSIGN(x, z))
+let jvalueInBrackets = (between (str "(") (str ")") jvalue)
+
+
+let iassignment: Parser<AST,unit> = pipe3 ((str_ws "var") >>. identifier) (str_ws "=") jvalue (fun x _ z -> VAR_ASSIGN(x, z))
+// let iassignment_arr: Parser<AST,unit> = pipe3 (identifier .>>. (between (str_ws "[") (str_ws "]") inumber)) (str_ws "=") jvalue (fun (x, CONST (INT i))  _ z -> ARR_ASSIGN(x, i, z))
+//let idef_arr: Parser<AST,unit> = pipe2 (str_ws "int") (between (str_ws "[") (str_ws "]") jvalue) (fun _ x -> ARR_DEF(x))
 let SepBySemiColon pElement f =
     (ws >>. (sepEndBy (pElement .>> ws) (str ";" >>. ws))  |>> f)
-let IfCond pElement =
-    between (str_ws "if(") (str_ws "):") (ws >>. pElement)
-            
+
 let iblock   = SepBySemiColon jvalue BLOCK
 let iinputInt = (str_ws "input_int") |>> (fun _ -> INPUT_INT)
 let ioutput = pipe2 (str_ws "output") jvalue (fun _ x -> OUTPUT x)
+let IfCond pElement =
+    between (str_ws "if(") (str_ws "):") (ws >>. pElement)
 let iif = pipe5 (IfCond jvalue) iblock (str_ws "else:") iblock (str_ws "endif") (fun cond yes _ no _ -> IF (cond, yes, no))
+let iplus: Parser<AST,unit> = pipe3 jvalueInBrackets (str_ws "+") jvalueInBrackets (fun x _ y -> PLUS_OP(x, y))
 
 let iidentifier = identifier |>> VAR_REF
 
 do jvalueRef := choice [
-   iidentifier; inumber; istring; iassignment; iinputInt; ioutput; iif
+  iassignment; iidentifier; inumber; istring; iinputInt; ioutput; iif; iplus;
 ]
-test iblock ""
 
 
-let test_program = // test program with arrays
-    BLOCK [VAR_ASSIGN("$input", INPUT_INT);
-                IF
-                    (PLUS_OP(VAR_REF "$input", CONST (INT -4337)),
-                     "Your input is not 4337" |> STR |> CONST |> OUTPUT,
-                     BLOCK [
-                        "Your input is 4337. Enter another number: " |> STR |> CONST |> OUTPUT;
-                        VAR_ASSIGN("$array", 3 |> INT |> CONST |> ARR_DEF);
-                        ARR_ASSIGN("$array", 0, INPUT_INT);
-                        "Your number: " |> STR |> CONST |> OUTPUT
-                        OUTPUT (ARR_REF ("$array", 0)); ]);
-                 RET_OP (CONST (INT 0)) ]
+[<EntryPoint>]
+let main argv =
+    if argv.Length = 1 then
+        let code = System.IO.File.ReadAllText(argv.[0])
+        test iblock code
+        printfn "Program executed"
+    else
+        printfn "Please select file"
+    
+
+    let test_program = // test program with arrays, parser does not support arrays
+        BLOCK [VAR_ASSIGN("$input", INPUT_INT);
+                    IF
+                        (PLUS_OP(VAR_REF "$input", CONST (INT -4337)),
+                         "Your input is not 4337" |> STR |> CONST |> OUTPUT,
+                         BLOCK [
+                            "Your input is 4337. Enter another number: " |> STR |> CONST |> OUTPUT;
+                            VAR_ASSIGN("$array", 3 |> INT |> CONST |> ARR_DEF);
+                            ARR_ASSIGN("$array", 0, INPUT_INT);
+                            "Your number: " |> STR |> CONST |> OUTPUT
+                            OUTPUT (ARR_REF ("$array", 0)); ]);
+                     RET_OP (CONST (INT 0)) ]
+    0

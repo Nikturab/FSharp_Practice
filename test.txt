@@ -1,13 +1,17 @@
-var $a=input_int;
-output $a;
-if(1):
-    var $b=input_int;
-    if($b):
-        1;
-    else:
-        2;
-    endif;
-    var $c=input_int;
+output "$a = x+y+8; Enter x, y: 
+";
+var $a=((input_int)+(input_int))+(8);
+output "Enter $b: ";
+var $b=input_int;
+output "
+Result: ";
+output ($a)+($b);
+if(($a)+($b)):
+    output "
+$a+$b != 0
+";
 else:
-    0;
+    output "
+$a+$b == 0
+";
 endif;
